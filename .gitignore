@@ -1,0 +1,60 @@
+@'
+# --- Secretos (NUNCA al repo) ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+credentials
+credentials.json
+.aws/
+*.tfvars
+!*.tfvars.example
+
+# --- Python / uv ---
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+
+# --- Herramientas ---
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# --- Docker / datos locales ---
+docker-compose.override.yml
+data/
+*.csv
+*.parquet
+!scripts/seed/*.csv
+minio-data/
+pgdata/
+
+# --- Airflow ---
+pipelines/airflow/logs/
+pipelines/airflow/airflow.db
+pipelines/airflow/*.pid
+
+# --- Spark / Jupyter ---
+spark-warehouse/
+metastore_db/
+derby.log
+.ipynb_checkpoints/
+
+# --- IDE / SO ---
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+*.log
+'@ | Set-Content -Path .gitignore -Encoding utf8
