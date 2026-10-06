@@ -16,7 +16,7 @@ services:
   localstack:
     image: localstack/localstack:latest
     volumes:
-      - ./docker/localstack/init-s3-buckets.sh:/etc/localstack/init/ready.d/init-s3-buckets.sh:ro
+      - ./docker/medallon/init-s3-buckets.sh:/etc/localstack/init/ready.d/init-s3-buckets.sh:ro
 
   api:
     build:
@@ -24,7 +24,7 @@ services:
       dockerfile: ./docker/fastapi/Dockerfile
     entrypoint: ["/bin/sh", "./docker/fastapi/entrypoint.sh"]
 
-  pgadmin:
-    image: dpage/pgadmin4
-    volumes:
-      - ./docker/pgadmin/servers.json:/pgadmin4/servers.json:ro
+  psql:
+    image: postgres:15-alpine
+    restart: "no"
+    entrypoint: ["psql", "-h", "postgres", "-U", "agrosense_user", "-d", "agrosense_db"]
