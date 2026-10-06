@@ -1,0 +1,121 @@
+{
+  "rabbit_version": "3.13.0",
+  "rabbitmq_version": "3.13.0",
+  "product_name": "RabbitMQ",
+  "product_version": "3.13.0",
+  "users": [
+    {
+      "name": "guest",
+      "password_hash": "wBkW7s564K1B29l0gP8wYkXyL18q5K8N1+4g5uV8i0w=",
+      "hashing_algorithm": "rabbit_password_hashing_sha256",
+      "tags": [
+        "administrator"
+      ],
+      "limits": {}
+    },
+    {
+      "name": "agrosense",
+      "password_hash": "wBkW7s564K1B29l0gP8wYkXyL18q5K8N1+4g5uV8i0w=",
+      "hashing_algorithm": "rabbit_password_hashing_sha256",
+      "tags": [
+        "administrator"
+      ],
+      "limits": {}
+    }
+  ],
+  "vhosts": [
+    {
+      "name": "/",
+      "limits": [],
+      "metadata": {
+        "description": "Default virtual host for AgroSense Café IoT & Traceability",
+        "tags": []
+      }
+    }
+  ],
+  "permissions": [
+    {
+      "user": "guest",
+      "vhost": "/",
+      "configure": ".*",
+      "write": ".*",
+      "read": ".*"
+    },
+    {
+      "user": "agrosense",
+      "vhost": "/",
+      "configure": ".*",
+      "write": ".*",
+      "read": ".*"
+    }
+  ],
+  "topic_permissions": [],
+  "parameters": [],
+  "global_parameters": [],
+  "policies": [],
+  "exchanges": [
+    {
+      "name": "iot.telemetry.exchange",
+      "vhost": "/",
+      "type": "topic",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    },
+    {
+      "name": "iot.telemetry.dlx",
+      "vhost": "/",
+      "type": "direct",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    }
+  ],
+  "queues": [
+    {
+      "name": "iot.telemetry.queue",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "iot.telemetry.dlx",
+        "x-dead-letter-routing-key": "dead.letter"
+      }
+    },
+    {
+      "name": "iot.telemetry.dlq",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    }
+  ],
+  "bindings": [
+    {
+      "source": "iot.telemetry.exchange",
+      "vhost": "/",
+      "destination": "iot.telemetry.queue",
+      "destination_type": "queue",
+      "routing_key": "telemetry.#",
+      "arguments": {}
+    },
+    {
+      "source": "iot.telemetry.exchange",
+      "vhost": "/",
+      "destination": "iot.telemetry.queue",
+      "destination_type": "queue",
+      "routing_key": "iot.telemetry.#",
+      "arguments": {}
+    },
+    {
+      "source": "iot.telemetry.dlx",
+      "vhost": "/",
+      "destination": "iot.telemetry.dlq",
+      "destination_type": "queue",
+      "routing_key": "dead.letter",
+      "arguments": {}
+    }
+  ]
+}

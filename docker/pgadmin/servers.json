@@ -1,0 +1,13 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "AgroSense PostgreSQL Local",
+      "Group": "Development",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "agrosense_db",
+      "Username": "agrosense_user",
+      "SSLMode": "prefer"
+    }
+  }
+}

@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    volumes:
+      - ./docker/postgres/init-scripts:/docker-entrypoint-initdb.d:ro
+      - ./docker/postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+
+  rabbitmq:
+    image: rabbitmq:3.12-management-alpine
+    volumes:
+      - ./docker/rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+      - ./docker/rabbitmq/definitions.json:/etc/rabbitmq/definitions.json:ro
+
+  localstack:
+    image: localstack/localstack:latest
+    volumes:
+      - ./docker/localstack/init-s3-buckets.sh:/etc/localstack/init/ready.d/init-s3-buckets.sh:ro
+
+  api:
+    build:
+      context: .
+      dockerfile: ./docker/fastapi/Dockerfile
+    entrypoint: ["/bin/sh", "./docker/fastapi/entrypoint.sh"]
+
+  pgadmin:
+    image: dpage/pgadmin4
+    volumes:
+      - ./docker/pgadmin/servers.json:/pgadmin4/servers.json:ro
