@@ -68,59 +68,59 @@ and execution logs:
 
 # 4. Declarative Docker Compose Configuration (Direct AWS S3)
 
-version: '3.8'  
-  
-networks:  
-agrosense_public_subnet:  
-driver: bridge  
-name: agrosense_public_subnet  
-agrosense_private_subnet:  
-driver: bridge  
-name: agrosense_private_subnet  
-  
-volumes:  
-pg_spatial_data:  
-driver: local  
-iot_telemetry_queue_data:  
-driver: local  
-airflow_logs_data:  
-driver: local  
-redis_data:  
-driver: local  
-  
-services:  
-db:  
-image: postgis/postgis:16-3.4-alpine  
-container_name: agrosense_db  
-environment:  
-POSTGRES_USER: \${POSTGRES_USER:-agrosense_user}  
-POSTGRES_PASSWORD: \${POSTGRES_PASSWORD:-change_this_locally}  
-POSTGRES_DB: \${POSTGRES_DB:-agrosense_db}  
-volumes:  
-- pg_spatial_data:/var/lib/postgresql/data  
-networks:  
-- agrosense_private_subnet  
-  
-broker:  
-image: rabbitmq:3.13-management-alpine  
-container_name: agrosense_broker  
-volumes:  
-- iot_telemetry_queue_data:/var/lib/rabbitmq  
-networks:  
-- agrosense_private_subnet  
-  
-api:  
-build: ./apps/api  
-container_name: agrosense_api  
-ports:  
-- "8000:8000"  
-environment:  
-- POSTGRES_HOST=db  
-- RABBITMQ_HOST=broker  
-- AWS_ACCESS_KEY_ID=\${AWS_ACCESS_KEY_ID}  
-- AWS_SECRET_ACCESS_KEY=\${AWS_SECRET_ACCESS_KEY}  
-- AWS_DEFAULT_REGION=\${AWS_REGION:-us-east-1}  
-- S3_DATALAKE_BUCKET=agrosense-datalake-prod  
-networks:  
-- agrosense_public_subnet  
+version: '3.8'
+
+networks:
+agrosense_public_subnet:
+driver: bridge
+name: agrosense_public_subnet
+agrosense_private_subnet:
+driver: bridge
+name: agrosense_private_subnet
+
+volumes:
+pg_spatial_data:
+driver: local
+iot_telemetry_queue_data:
+driver: local
+airflow_logs_data:
+driver: local
+redis_data:
+driver: local
+
+services:
+db:
+image: postgis/postgis:16-3.4-alpine
+container_name: agrosense_db
+environment:
+POSTGRES_USER: \${POSTGRES_USER:-agrosense_user}
+POSTGRES_PASSWORD: \${POSTGRES_PASSWORD:-change_this_locally}
+POSTGRES_DB: \${POSTGRES_DB:-agrosense_db}
+volumes:
+- pg_spatial_data:/var/lib/postgresql/data
+networks:
+- agrosense_private_subnet
+
+broker:
+image: rabbitmq:3.13-management-alpine
+container_name: agrosense_broker
+volumes:
+- iot_telemetry_queue_data:/var/lib/rabbitmq
+networks:
+- agrosense_private_subnet
+
+api:
+build: ./apps/api
+container_name: agrosense_api
+ports:
+- "8000:8000"
+environment:
+- POSTGRES_HOST=db
+- RABBITMQ_HOST=broker
+- AWS_ACCESS_KEY_ID=\${AWS_ACCESS_KEY_ID}
+- AWS_SECRET_ACCESS_KEY=\${AWS_SECRET_ACCESS_KEY}
+- AWS_DEFAULT_REGION=\${AWS_REGION:-us-east-1}
+- S3_DATALAKE_BUCKET=agrosense-datalake-prod
+networks:
+- agrosense_public_subnet
 - agrosense_private_subnet

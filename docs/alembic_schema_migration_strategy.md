@@ -21,17 +21,17 @@ instances.
 
 ### Repository Directory Structure (/alembic)
 
-> agrosense-backend/  
-> ├── alembic.ini \# Main configuration file (DB URLs, logging)  
-> ├── alembic/  
-> │ ├── env.py \# Migration execution context & SQLAlchemy metadata  
-> │ ├── script.py.mako \# Template for generating new revision files  
-> │ └── versions/ \# Ordered revision scripts  
+> agrosense-backend/
+> ├── alembic.ini \# Main configuration file (DB URLs, logging)
+> ├── alembic/
+> │ ├── env.py \# Migration execution context & SQLAlchemy metadata
+> │ ├── script.py.mako \# Template for generating new revision files
+> │ └── versions/ \# Ordered revision scripts
 > │ ├── 001_initial_schema.py \# Initial baseline DDL (5-Tier
-> Topology)  
-> │ └── 002_add_indexes.py \# Performance & audit index enhancements  
-> └── app/  
-> └── db/  
+> Topology)
+> │ └── 002_add_indexes.py \# Performance & audit index enhancements
+> └── app/
+> └── db/
 > └── base.py \# Declarative base importing all ORM models
 
 # 2. Initial Revision Structure (001_initial_schema.py)

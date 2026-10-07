@@ -175,4 +175,3 @@ variables defined in environment_variables.md:
 | **Testing Best Practice:** *When running in zero-defect mode (SEED\_DEFECT\_GLOBAL\_RATE=0.0), the seed generator produces 100% compliant data ideal for performance benchmarking and baseline dashboard testing.* |
 | --- |
 |  |
-

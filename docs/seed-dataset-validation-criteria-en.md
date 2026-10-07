@@ -62,33 +62,33 @@ controlled defect scenarios at a configurable rate:
 **SQL Inspections for Relational, Spatial, and Sensor Quality
 Integrity:**
 
--- 1. Foreign Key Integrity Check (Zero Orphan Deliveries)  
-SELECT COUNT(\*) AS orphan_deliveries_count  
-FROM delivery d  
-LEFT JOIN farm f ON d.farm_id = f.farm_id  
-WHERE f.farm_id IS NULL;  
-  
--- 2. PostGIS Geometry Validity & SRID Check  
-SELECT farm_id, name  
-FROM farm  
-WHERE ST_IsValid(geom) = FALSE OR ST_SRID(geom) != 4326;  
-  
--- 3. Detection of Flatlining / Defective Sensors (RN-02)  
-SELECT sensor_id, STDDEV(reading_value)  
-FROM sensor_reading  
-WHERE reading_timestamp \>= NOW() - INTERVAL '24 hours'  
-GROUP BY sensor_id  
+-- 1. Foreign Key Integrity Check (Zero Orphan Deliveries)
+SELECT COUNT(\*) AS orphan_deliveries_count
+FROM delivery d
+LEFT JOIN farm f ON d.farm_id = f.farm_id
+WHERE f.farm_id IS NULL;
+
+-- 2. PostGIS Geometry Validity & SRID Check
+SELECT farm_id, name
+FROM farm
+WHERE ST_IsValid(geom) = FALSE OR ST_SRID(geom) != 4326;
+
+-- 3. Detection of Flatlining / Defective Sensors (RN-02)
+SELECT sensor_id, STDDEV(reading_value)
+FROM sensor_reading
+WHERE reading_timestamp \>= NOW() - INTERVAL '24 hours'
+GROUP BY sensor_id
 HAVING STDDEV(reading_value) \< 0.005;
 
 ### Automated Idempotency Assertion Test (pytest / CT-06):
 
-def test_seed_idempotency_ct06():  
-run_seed(seed_value=42, mode='dev') \# Initial execution  
-hash_run_1 = calculate_database_checksum()  
-  
-run_seed(seed_value=42, mode='dev') \# Re-execution (UPSERT)  
-hash_run_2 = calculate_database_checksum()  
-  
+def test_seed_idempotency_ct06():
+run_seed(seed_value=42, mode='dev') \# Initial execution
+hash_run_1 = calculate_database_checksum()
+
+run_seed(seed_value=42, mode='dev') \# Re-execution (UPSERT)
+hash_run_2 = calculate_database_checksum()
+
 assert hash_run_1 == hash_run_2, 'Assertion Error: Seed execution is not
 idempotent (CT-06 violation)'
 

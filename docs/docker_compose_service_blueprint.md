@@ -46,9 +46,9 @@ contracts. It exposes standard port 5432 and persists data in named
 volume postgres_data.
 
 > **• Healthcheck Command:** pg_isready -U agrosense_user -d
-> agrosense_db  
+> agrosense_db
 > **• Interval & Timeout:** Interval: 5s, Timeout: 5s, Retries: 5, Start
-> Period: 10s.  
+> Period: 10s.
 > **• Environment Variables:** POSTGRES_DB=agrosense_db,
 > POSTGRES_USER=agrosense_user,
 > POSTGRES_PASSWORD=agrosense_secure_pass_2026
@@ -61,7 +61,7 @@ and monitor database performance. Bound to host port 5050 (mapped to
 internal port 80).
 
 > **• Startup Dependency:** depends_on postgres with condition
-> service_healthy.  
+> service_healthy.
 > **• Environment Variables:** PGADMIN_DEFAULT_EMAIL=admin@agrosense.co,
 > PGADMIN_DEFAULT_PASSWORD=admin_secret_pass
 
@@ -72,9 +72,9 @@ cellular sync blocks. Uses rabbitmq:3.12-management-alpine to provide
 both the AMQP message broker protocol on port 5672 and the web
 management plugin on port 15672.
 
-> **• Healthcheck Command:** rabbitmq-diagnostics -q ping  
+> **• Healthcheck Command:** rabbitmq-diagnostics -q ping
 > **• Interval & Timeout:** Interval: 10s, Timeout: 5s, Retries: 5,
-> Start Period: 15s.  
+> Start Period: 15s.
 > **• Environment Variables:** RABBITMQ_DEFAULT_USER=agrosense_mq,
 > RABBITMQ_DEFAULT_PASS=mq_secure_pass_2026
 
@@ -87,7 +87,7 @@ without external AWS credentials or cloud billing. Exposes edge port
 
 > **• Healthcheck Command:** curl -s
 > http://localhost:4566/\_localstack/health \| grep -q '"s3":
-> "running"'  
+> "running"'
 > **• Environment Variables:** SERVICES=s3,
 > AWS_DEFAULT_REGION=us-east-1, DOCKER_HOST=unix:///var/run/docker.sock
 
@@ -99,7 +99,7 @@ registration, and IoT ingestion. Exposes port 8000 and depends strictly
 on the health of PostgreSQL, RabbitMQ, and LocalStack.
 
 > **• Healthcheck Command:** curl -f http://localhost:8000/health \|\|
-> exit 1  
+> exit 1
 > **• Dependencies:** depends_on: postgres (service_healthy), rabbitmq
 > (service_healthy), localstack (service_healthy).
 
@@ -265,4 +265,3 @@ Café:
 | timeout: 5s\\                                                                       |
 | retries: 3\\                                                                        |
 | start_period: 10s                                                                   |
-

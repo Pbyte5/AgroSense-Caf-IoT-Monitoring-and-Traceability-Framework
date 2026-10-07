@@ -45,14 +45,14 @@ any data generation logic.
 At runtime, the Python process locks all pseudo-random generators to the
 value specified by **SEED_RANDOM_STATE** (default: 42):
 
-import random  
-import numpy as np  
-from faker import Faker  
-  
-def set_reproducible_state(seed: int = 42):  
-random.seed(seed)  
-np.random.seed(seed)  
-Faker.seed(seed)  
+import random
+import numpy as np
+from faker import Faker
+
+def set_reproducible_state(seed: int = 42):
+random.seed(seed)
+np.random.seed(seed)
+Faker.seed(seed)
 os.environ\['PYTHONHASHSEED'\] = str(seed)
 
 ## 2.2 Deterministic UUIDv5 Identifier Mapping
@@ -168,15 +168,15 @@ prior to population:
 To verify acceptance criterion **CT-06** (Zero Duplicates & Full
 Repeatability), developers run the following verification protocol:
 
-\# Step 1: Run seed in production mode  
-uv run python -m scripts.seed --mode prod --seed 42 --reset  
-  
+\# Step 1: Run seed in production mode
+uv run python -m scripts.seed --mode prod --seed 42 --reset
+
 \# Step 2: Record exact table row counts (e.g., SELECT COUNT(\*) FROM
-farms -\> 1300)  
-  
-\# Step 3: Re-run seed WITHOUT reset (testing UPSERT idempotency)  
-uv run python -m scripts.seed --mode prod --seed 42  
-  
+farms -\> 1300)
+
+\# Step 3: Re-run seed WITHOUT reset (testing UPSERT idempotency)
+uv run python -m scripts.seed --mode prod --seed 42
+
 \# Step 4: Verify row counts remain EXACTLY identical with ZERO
 duplicate keys
 

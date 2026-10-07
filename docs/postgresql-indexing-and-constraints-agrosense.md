@@ -84,33 +84,33 @@ indexes for active records.
 The following SQL DDL script consolidates all index creations and
 constraint definitions for deployment via Alembic migrations:
 
--- 1. Foreign Key B-Tree Lookup Indexes  
-CREATE INDEX IF NOT EXISTS idx_fk_entrega_finca ON entrega(finca_id);  
+-- 1. Foreign Key B-Tree Lookup Indexes
+CREATE INDEX IF NOT EXISTS idx_fk_entrega_finca ON entrega(finca_id);
 CREATE INDEX IF NOT EXISTS idx_fk_analisis_suelo_finca ON
-analisis_suelo(finca_id);  
+analisis_suelo(finca_id);
 CREATE INDEX IF NOT EXISTS idx_fk_lfo_lote ON
-lote_finca_origen(lote_id);  
+lote_finca_origen(lote_id);
 CREATE INDEX IF NOT EXISTS idx_fk_lfo_finca ON
-lote_finca_origen(finca_id);  
+lote_finca_origen(finca_id);
 CREATE INDEX IF NOT EXISTS idx_fk_compra_comprador ON
-compra_lote(comprador_id);  
-  
--- 2. PostGIS Spatial GiST Indexes  
-CREATE INDEX IF NOT EXISTS idx_finca_geom ON finca USING GIST(geom);  
+compra_lote(comprador_id);
+
+-- 2. PostGIS Spatial GiST Indexes
+CREATE INDEX IF NOT EXISTS idx_finca_geom ON finca USING GIST(geom);
 CREATE INDEX IF NOT EXISTS idx_reserva_geom ON reserva_forestal USING
-GIST(geom);  
-  
--- 3. Compound B-Tree Filtering & Sorting Indexes  
+GIST(geom);
+
+-- 3. Compound B-Tree Filtering & Sorting Indexes
 CREATE INDEX IF NOT EXISTS idx_entrega_finca_fecha ON entrega(finca_id,
-fecha_entrega DESC);  
+fecha_entrega DESC);
 CREATE INDEX IF NOT EXISTS idx_compra_comprador_fecha ON
-compra_lote(comprador_id, fecha_compra DESC);  
-  
--- 4. Partial Indexes for High-Frequency Conditional Queries  
+compra_lote(comprador_id, fecha_compra DESC);
+
+-- 4. Partial Indexes for High-Frequency Conditional Queries
 CREATE INDEX IF NOT EXISTS idx_finca_invalidated_reserve ON
-finca(finca_id)  
-WHERE solapamiento_reserva_bool = TRUE;  
-  
+finca(finca_id)
+WHERE solapamiento_reserva_bool = TRUE;
+
 CREATE INDEX IF NOT EXISTS idx_lote_certified_exportable ON
-lote_exportacion(lote_id)  
+lote_exportacion(lote_id)
 WHERE estado_certificacion = 'EXPORTABLE_CERTIFICADO';
