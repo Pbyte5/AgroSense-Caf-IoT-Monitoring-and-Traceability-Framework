@@ -24,6 +24,7 @@ select = ["E", "F", "I", "B", "UP", "S"]   # S = reglas de seguridad (bandit)
 
 [tool.ruff.lint.per-file-ignores]
 "**/tests/**" = ["S101"]                   # permite assert en pruebas
+"scripts/seed/**" = ["S311"]               # PRNG estándar requerido para simulación determinista (no criptográfica)
 
 [tool.pytest.ini_options]
 testpaths = ["apps", "tests"]
