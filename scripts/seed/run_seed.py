@@ -15,6 +15,8 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from scripts.seed.spatial import PostGISSpatialGenerator
+
 logger = logging.getLogger("agrosense.seed")
 
 # Namespace oficial para generación determinista de identificadores UUIDv5 (Deliverable E-03, CT-06)
@@ -213,6 +215,59 @@ def generate_sample_seed_records(count: int = 5) -> list[dict[str, Any]]:
     return sample_records
 
 
+def generate_spatial_seed_records(
+    farms: list[dict[str, Any]], seed: int
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Attach deterministic PostGIS-ready boundaries to farms and generate reserves.
+
+    Geometry is returned as EWKT (for ``ST_GeomFromEWKT``) and GeoJSON (for the
+    project's JSONB ``polygon_geojson`` columns). These are synthetic seed records;
+    this function does not connect to or write into a database.
+    """
+    if not isinstance(farms, list) or any(not isinstance(farm, dict) for farm in farms):
+        raise ValueError("farms debe ser una lista de registros tipo diccionario.")
+    if not isinstance(seed, int) or isinstance(seed, bool):
+        raise ValueError("seed debe ser un entero.")
+    generator = PostGISSpatialGenerator(seed=seed)
+    reserves = generator.generate_forest_reserves(count=min(len(farms), 5))
+    reserve_records = [
+        {
+            "reserve_id": reserve.entity_id,
+            "reserve_code": reserve.entity_code,
+            "name": reserve.name,
+            "area_ha": reserve.area_ha,
+            "srid": reserve.srid,
+            "geom_ewkt": reserve.ewkt,
+            "polygon_geojson": reserve.geojson,
+        }
+        for reserve in reserves
+    ]
+
+    farm_records: list[dict[str, Any]] = []
+    for farm in farms:
+        polygon = generator.generate_farm_polygon(
+            farm_code=farm["farm_code"],
+            name=farm["name"],
+            area_ha=farm["total_area_ha"],
+        )
+        overlaps = any(
+            generator.polygons_intersect(polygon.points, reserve.points) for reserve in reserves
+        )
+        farm_records.append(
+            {
+                **farm,
+                "latitude": polygon.center_lat,
+                "longitude": polygon.center_lon,
+                "has_valid_coords": polygon.is_valid_coords,
+                "overlaps_reserve": overlaps,
+                "srid": polygon.srid,
+                "geom_ewkt": polygon.ewkt,
+                "polygon_geojson": polygon.geojson,
+            }
+        )
+    return farm_records, reserve_records
+
+
 def run_seed(config: SeedConfig) -> int:
     """Orquesta y ejecuta el proceso de generación y siembra de datos.
 
@@ -236,7 +291,9 @@ def run_seed(config: SeedConfig) -> int:
         set_reproducible_state(config.seed)
 
         # 2. Crear lista vacía y poblarla con una muestra sintética para testear
-        sample_data = generate_sample_seed_records(count=5)
+        sample_data, reserve_data = generate_spatial_seed_records(
+            generate_sample_seed_records(count=5), seed=config.seed
+        )
         logger.info(
             "Muestra sintética generada exitosamente (%d registros):",
             len(sample_data),
@@ -250,6 +307,13 @@ def run_seed(config: SeedConfig) -> int:
                 item["total_area_ha"],
                 item["has_pilot_sensors"],
             )
+
+        logger.info(
+            "Geometrías generadas: %d fincas y %d reservas forestales (SRID=%d).",
+            len(sample_data),
+            len(reserve_data),
+            4326,
+        )
 
         logger.info("Proceso de seeding finalizado con éxito.")
         return 0

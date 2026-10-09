@@ -8,6 +8,7 @@ from scripts.seed.run_seed import (
     SeedConfig,
     build_parser,
     generate_sample_seed_records,
+    generate_spatial_seed_records,
     main,
     parse_args,
     run_seed,
@@ -102,6 +103,20 @@ def test_generate_sample_seed_records_determinism():
     assert sample_1 == sample_2
     assert sample_1[0]["farm_code"] == "FIN-0001"
     assert sample_1[0]["farm_id"] == "7060dc2f-48eb-5db4-9a7d-47ac1b4b4ae9"
+
+
+def test_generate_spatial_seed_records_is_postgis_ready_and_deterministic():
+    farms = generate_sample_seed_records(count=3)
+    farms_a, reserves_a = generate_spatial_seed_records(farms, seed=42)
+    farms_b, reserves_b = generate_spatial_seed_records(farms, seed=42)
+
+    assert len(farms_a) == 3
+    assert len(reserves_a) == 3
+    assert farms_a == farms_b
+    assert reserves_a == reserves_b
+    assert farms_a[0]["geom_ewkt"].startswith("SRID=4326;POLYGON((")
+    assert farms_a[0]["polygon_geojson"]["type"] == "Polygon"
+    assert reserves_a[0]["geom_ewkt"].startswith("SRID=4326;POLYGON((")
 
 
 def test_run_seed_execution():

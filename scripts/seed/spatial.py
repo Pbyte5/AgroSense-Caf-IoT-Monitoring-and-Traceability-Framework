@@ -185,6 +185,19 @@ class PostGISSpatialGenerator:
             raise ValueError("El primer y el último vértice deben coincidir para cerrar el anillo.")
         if len({tuple(point) for point in points[:-1]}) < 3:
             raise ValueError("Un polígono requiere al menos 3 vértices distintos.")
+        area = abs(
+            sum(x1 * y2 - x2 * y1 for (x1, y1), (x2, y2) in zip(points, points[1:], strict=False))
+        )
+        if area <= 1e-12:
+            raise ValueError("El anillo debe encerrar un área positiva.")
+        segments = list(zip(points, points[1:], strict=False))
+        for i, (start_a, end_a) in enumerate(segments):
+            for j in range(i + 1, len(segments)):
+                if j == i + 1 or (i == 0 and j == len(segments) - 1):
+                    continue
+                start_b, end_b = segments[j]
+                if PostGISSpatialGenerator._segments_intersect(start_a, end_a, start_b, end_b):
+                    raise ValueError("El anillo no puede auto-intersectarse.")
 
     @staticmethod
     def polygon_to_wkt(points: list[tuple[float, float]]) -> str:
