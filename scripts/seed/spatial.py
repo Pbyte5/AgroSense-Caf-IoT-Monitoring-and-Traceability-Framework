@@ -9,51 +9,26 @@ from __future__ import annotations
 import math
 import random
 import uuid
-from dataclasses import dataclass
-from typing import Any
 
-# Bounding box oficial para la región cafetera colombiana
-# (Huila, Cauca, Eje Cafetero, Antioquia, Tolima)
-COFFEE_REGION_BOUNDS = {
-    "min_lat": 1.0,
-    "max_lat": 7.5,
-    "min_lon": -77.5,
-    "max_lon": -74.5,
-}
+from scripts.seed.spatial_geometry import (
+    point_in_polygon,
+    point_on_segment,
+    polygon_to_geojson,
+    polygon_to_wkt,
+    polygons_intersect,
+    segments_intersect,
+    validate_ring,
+)
+from scripts.seed.spatial_models import (
+    AGROSENSE_NAMESPACE,
+    COFFEE_REGION_BOUNDS,
+    SpatialPolygonResult,
+)
+from scripts.seed.spatial_models import (
+    COLOMBIA_VALID_BOUNDS as _COLOMBIA_VALID_BOUNDS,
+)
 
-# Límites absolutos de coordenadas geográficas permitidas por el modelo relacional (Colombia)
-COLOMBIA_VALID_BOUNDS = {
-    "min_lat": -4.23,
-    "max_lat": 13.50,
-    "min_lon": -81.73,
-    "max_lon": -66.85,
-}
-
-# Namespace oficial para UUIDv5 determinista
-AGROSENSE_NAMESPACE = uuid.UUID("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
-
-
-@dataclass(frozen=True)
-class SpatialPolygonResult:
-    """Resultado estructurado de una entidad espacial generada."""
-
-    entity_id: str
-    entity_code: str
-    name: str
-    center_lat: float
-    center_lon: float
-    area_ha: float
-    points: list[tuple[float, float]]
-    wkt: str
-    geojson: dict[str, Any]
-    is_valid_coords: bool
-    overlaps_reserve: bool = False
-    srid: int = 4326
-
-    @property
-    def ewkt(self) -> str:
-        """Return EWKT accepted by PostGIS ``ST_GeomFromEWKT``."""
-        return f"SRID={self.srid};{self.wkt}"
+COLOMBIA_VALID_BOUNDS = _COLOMBIA_VALID_BOUNDS
 
 
 class PostGISSpatialGenerator:
@@ -164,131 +139,13 @@ class PostGISSpatialGenerator:
         self._validate_ring(points)
         return points
 
-    @staticmethod
-    def _validate_ring(points: list[tuple[float, float]]) -> None:
-        """Validate a closed WGS84 polygon exterior ring before serialization."""
-        if not isinstance(points, list) or len(points) < 4:
-            raise ValueError("Un anillo poligonal cerrado requiere al menos 4 puntos.")
-        if any(not isinstance(point, tuple | list) or len(point) != 2 for point in points):
-            raise ValueError("Cada vértice debe ser un par de coordenadas.")
-        for point in points:
-            if (
-                not all(isinstance(value, int | float) for value in point)
-                or any(isinstance(value, bool) for value in point)
-                or not all(math.isfinite(value) for value in point)
-            ):
-                raise ValueError("Cada vértice debe contener longitud y latitud finitas.")
-            lon, lat = point
-            if not -180 <= lon <= 180 or not -90 <= lat <= 90:
-                raise ValueError("Los vértices deben estar dentro del rango geográfico válido.")
-        if tuple(points[0]) != tuple(points[-1]):
-            raise ValueError("El primer y el último vértice deben coincidir para cerrar el anillo.")
-        if len({tuple(point) for point in points[:-1]}) < 3:
-            raise ValueError("Un polígono requiere al menos 3 vértices distintos.")
-        area = abs(
-            sum(x1 * y2 - x2 * y1 for (x1, y1), (x2, y2) in zip(points, points[1:], strict=False))
-        )
-        if area <= 1e-12:
-            raise ValueError("El anillo debe encerrar un área positiva.")
-        segments = list(zip(points, points[1:], strict=False))
-        for i, (start_a, end_a) in enumerate(segments):
-            for j in range(i + 1, len(segments)):
-                if j == i + 1 or (i == 0 and j == len(segments) - 1):
-                    continue
-                start_b, end_b = segments[j]
-                if PostGISSpatialGenerator._segments_intersect(start_a, end_a, start_b, end_b):
-                    raise ValueError("El anillo no puede auto-intersectarse.")
-
-    @staticmethod
-    def polygon_to_wkt(points: list[tuple[float, float]]) -> str:
-        """Convierte vértices (lon, lat) a formato Well-Known Text (WKT)."""
-        PostGISSpatialGenerator._validate_ring(points)
-        coords_str = ", ".join(f"{lon} {lat}" for lon, lat in points)
-        return f"POLYGON(({coords_str}))"
-
-    @staticmethod
-    def polygon_to_geojson(points: list[tuple[float, float]]) -> dict[str, Any]:
-        """Convierte vértices (lon, lat) a diccionario GeoJSON Polygon."""
-        PostGISSpatialGenerator._validate_ring(points)
-        return {
-            "type": "Polygon",
-            "coordinates": [[list(pt) for pt in points]],
-        }
-
-    @staticmethod
-    def point_in_polygon(point: tuple[float, float], polygon: list[tuple[float, float]]) -> bool:
-        """Determina si un punto (lon, lat) está dentro de un polígono usando Ray Casting."""
-        px, py = point
-        inside = False
-        n = len(polygon)
-        if n < 4:
-            return False
-
-        j = n - 1
-        for i in range(n):
-            xi, yi = polygon[i]
-            xj, yj = polygon[j]
-            if PostGISSpatialGenerator._point_on_segment(point, (xi, yi), (xj, yj)):
-                return True
-            intersect = ((yi > py) != (yj > py)) and (
-                px < (xj - xi) * (py - yi) / (yj - yi + 1e-12) + xi
-            )
-            if intersect:
-                inside = not inside
-            j = i
-        return inside
-
-    @staticmethod
-    def _point_on_segment(
-        point: tuple[float, float],
-        start: tuple[float, float],
-        end: tuple[float, float],
-        epsilon: float = 1e-12,
-    ) -> bool:
-        """Return whether a point lies on a segment, including its endpoints."""
-        px, py = point
-        sx, sy = start
-        ex, ey = end
-        cross = (px - sx) * (ey - sy) - (py - sy) * (ex - sx)
-        if abs(cross) > epsilon:
-            return False
-        return (
-            min(sx, ex) - epsilon <= px <= max(sx, ex) + epsilon
-            and min(sy, ey) - epsilon <= py <= max(sy, ey) + epsilon
-        )
-
-    @classmethod
-    def _segments_intersect(
-        cls,
-        a1: tuple[float, float],
-        a2: tuple[float, float],
-        b1: tuple[float, float],
-        b2: tuple[float, float],
-    ) -> bool:
-        """Return whether two planar segments cross or touch."""
-
-        def orientation(
-            p1: tuple[float, float], p2: tuple[float, float], p3: tuple[float, float]
-        ) -> float:
-            return (p2[0] - p1[0]) * (p3[1] - p1[1]) - (p2[1] - p1[1]) * (p3[0] - p1[0])
-
-        o1 = orientation(a1, a2, b1)
-        o2 = orientation(a1, a2, b2)
-        o3 = orientation(b1, b2, a1)
-        o4 = orientation(b1, b2, a2)
-        epsilon = 1e-12
-
-        if ((o1 > epsilon and o2 < -epsilon) or (o1 < -epsilon and o2 > epsilon)) and (
-            (o3 > epsilon and o4 < -epsilon) or (o3 < -epsilon and o4 > epsilon)
-        ):
-            return True
-
-        return (
-            (abs(o1) <= epsilon and cls._point_on_segment(b1, a1, a2, epsilon))
-            or (abs(o2) <= epsilon and cls._point_on_segment(b2, a1, a2, epsilon))
-            or (abs(o3) <= epsilon and cls._point_on_segment(a1, b1, b2, epsilon))
-            or (abs(o4) <= epsilon and cls._point_on_segment(a2, b1, b2, epsilon))
-        )
+    _validate_ring = staticmethod(validate_ring)
+    polygon_to_wkt = staticmethod(polygon_to_wkt)
+    polygon_to_geojson = staticmethod(polygon_to_geojson)
+    point_in_polygon = staticmethod(point_in_polygon)
+    _point_on_segment = staticmethod(point_on_segment)
+    _segments_intersect = staticmethod(segments_intersect)
+    polygons_intersect = staticmethod(polygons_intersect)
 
     @staticmethod
     def _validate_bounds(bounds: dict[str, float]) -> None:
@@ -370,53 +227,6 @@ class PostGISSpatialGenerator:
                 return center_lat, center_lon, points
 
         raise ValueError("No fue posible generar un polígono dentro de los límites indicados.")
-
-    @classmethod
-    def polygons_intersect(
-        cls,
-        poly_a: list[tuple[float, float]],
-        poly_b: list[tuple[float, float]],
-    ) -> bool:
-        """Determina si dos polígonos simples se intersectan o solapan.
-
-        Evalúa inclusión de vértices y cruces de segmentos para polígonos simples; incluye
-        el contacto entre bordes, como ST_Intersects.
-        """
-        try:
-            cls._validate_ring(poly_a)
-            cls._validate_ring(poly_b)
-        except (TypeError, ValueError):
-            return False
-        # Descarte rápido por bounding box envolvente
-        a_lons = [p[0] for p in poly_a]
-        a_lats = [p[1] for p in poly_a]
-        b_lons = [p[0] for p in poly_b]
-        b_lats = [p[1] for p in poly_b]
-
-        if (
-            max(a_lons) < min(b_lons)
-            or min(a_lons) > max(b_lons)
-            or max(a_lats) < min(b_lats)
-            or min(a_lats) > max(b_lats)
-        ):
-            return False
-
-        # Comprobar si algún vértice de A está dentro de B
-        for pt in poly_a[:-1]:
-            if cls.point_in_polygon(pt, poly_b):
-                return True
-
-        # Comprobar si algún vértice de B está dentro de A
-        for pt in poly_b[:-1]:
-            if cls.point_in_polygon(pt, poly_a):
-                return True
-
-        for a_start, a_end in zip(poly_a, poly_a[1:], strict=False):
-            for b_start, b_end in zip(poly_b, poly_b[1:], strict=False):
-                if cls._segments_intersect(a_start, a_end, b_start, b_end):
-                    return True
-
-        return False
 
     def generate_forest_reserves(
         self,

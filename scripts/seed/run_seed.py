@@ -10,17 +10,12 @@ import argparse
 import logging
 import os
 import random
-import uuid
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any
 
-from scripts.seed.spatial import PostGISSpatialGenerator
+from scripts.seed.records import generate_sample_seed_records, generate_spatial_seed_records
 
 logger = logging.getLogger("agrosense.seed")
-
-# Namespace oficial para generación determinista de identificadores UUIDv5 (Deliverable E-03, CT-06)
-AGROSENSE_NAMESPACE = uuid.UUID("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
 
 
 @dataclass(frozen=True)
@@ -176,96 +171,6 @@ def parse_args(args: Sequence[str] | None = None) -> SeedConfig:
         defect_rate=parsed.defect_rate,
         reset=parsed.reset,
     )
-
-
-def generate_sample_seed_records(count: int = 5) -> list[dict[str, Any]]:
-    """Genera una muestra sintética de registros usando la semilla y UUIDv5 deterministas.
-
-    Crea una lista de prueba con fincas simuladas siguiendo el esquema oficial
-    de AgroSense Café (data_structure.md) para verificar el determinismo.
-
-    Args:
-        count: Número de registros sintéticos a generar (por defecto 5 para pruebas).
-
-    Returns:
-        list[dict[str, Any]]: Lista de diccionarios con los registros de prueba generados.
-    """
-    sample_records: list[dict[str, Any]] = []
-
-    for i in range(1, count + 1):
-        farm_code = f"FIN-{i:04d}"
-        # Generación determinista de UUIDv5 según especificación del proyecto
-        farm_id = str(uuid.uuid5(AGROSENSE_NAMESPACE, farm_code))
-
-        # Valores generados usando el estado PRNG fijado por la semilla
-        altitude = random.randint(1200, 1950)
-        total_area = round(random.uniform(2.5, 25.0), 2)
-        has_sensors = random.random() < 0.3  # 30% aprox de fincas con sensores piloto
-
-        record = {
-            "farm_id": farm_id,
-            "farm_code": farm_code,
-            "name": f"Hacienda Cafetera {i}",
-            "altitude_msl": altitude,
-            "total_area_ha": total_area,
-            "has_pilot_sensors": has_sensors,
-        }
-        sample_records.append(record)
-
-    return sample_records
-
-
-def generate_spatial_seed_records(
-    farms: list[dict[str, Any]], seed: int
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """Attach deterministic PostGIS-ready boundaries to farms and generate reserves.
-
-    Geometry is returned as EWKT (for ``ST_GeomFromEWKT``) and GeoJSON (for the
-    project's JSONB ``polygon_geojson`` columns). These are synthetic seed records;
-    this function does not connect to or write into a database.
-    """
-    if not isinstance(farms, list) or any(not isinstance(farm, dict) for farm in farms):
-        raise ValueError("farms debe ser una lista de registros tipo diccionario.")
-    if not isinstance(seed, int) or isinstance(seed, bool):
-        raise ValueError("seed debe ser un entero.")
-    generator = PostGISSpatialGenerator(seed=seed)
-    reserves = generator.generate_forest_reserves(count=min(len(farms), 5))
-    reserve_records = [
-        {
-            "reserve_id": reserve.entity_id,
-            "reserve_code": reserve.entity_code,
-            "name": reserve.name,
-            "area_ha": reserve.area_ha,
-            "srid": reserve.srid,
-            "geom_ewkt": reserve.ewkt,
-            "polygon_geojson": reserve.geojson,
-        }
-        for reserve in reserves
-    ]
-
-    farm_records: list[dict[str, Any]] = []
-    for farm in farms:
-        polygon = generator.generate_farm_polygon(
-            farm_code=farm["farm_code"],
-            name=farm["name"],
-            area_ha=farm["total_area_ha"],
-        )
-        overlaps = any(
-            generator.polygons_intersect(polygon.points, reserve.points) for reserve in reserves
-        )
-        farm_records.append(
-            {
-                **farm,
-                "latitude": polygon.center_lat,
-                "longitude": polygon.center_lon,
-                "has_valid_coords": polygon.is_valid_coords,
-                "overlaps_reserve": overlaps,
-                "srid": polygon.srid,
-                "geom_ewkt": polygon.ewkt,
-                "polygon_geojson": polygon.geojson,
-            }
-        )
-    return farm_records, reserve_records
 
 
 def run_seed(config: SeedConfig) -> int:

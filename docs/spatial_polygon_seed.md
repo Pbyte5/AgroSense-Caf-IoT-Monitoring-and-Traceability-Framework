@@ -1,9 +1,14 @@
 # Generación espacial de fincas y reservas
 
-El módulo `scripts/seed/spatial.py` genera polígonos sintéticos deterministas en
-WGS 84 (EPSG:4326), limitados al bounding box configurado para la región cafetera
-colombiana: latitud 1.0–7.5 y longitud -77.5–-74.5. No representa linderos reales
-ni delimitaciones oficiales de reservas.
+El generador crea polígonos sintéticos deterministas en WGS 84 (EPSG:4326),
+limitados al bounding box configurado para la región cafetera colombiana: latitud
+1.0–7.5 y longitud -77.5–-74.5. No representa linderos reales ni delimitaciones
+oficiales de reservas.
+
+El código está dividido por responsabilidad: `spatial.py` genera fincas y reservas,
+`spatial_geometry.py` valida, serializa y compara polígonos, y `spatial_models.py`
+contiene el resultado espacial y los límites de coordenadas. `records.py` ensambla
+las geometrías con los registros del seed; `run_seed.py` conserva la interfaz CLI.
 
 Cada polígono se entrega en:
 
