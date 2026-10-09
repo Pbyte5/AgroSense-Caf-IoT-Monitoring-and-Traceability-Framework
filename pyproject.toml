@@ -26,5 +26,6 @@ select = ["E", "F", "I", "B", "UP", "S"]   # S = reglas de seguridad (bandit)
 "**/tests/**" = ["S101"]                   # permite assert en pruebas
 
 [tool.pytest.ini_options]
-testpaths = ["apps"]
-addopts = "--cov=apps --cov-report=term-missing"
+testpaths = ["apps", "tests"]
+pythonpath = ["."]
+addopts = "--cov=apps --cov=scripts --cov-report=term-missing"
