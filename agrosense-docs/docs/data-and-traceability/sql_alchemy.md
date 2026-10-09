@@ -240,7 +240,10 @@ class Farm(Base, TimestampMixin):
     )
 
     farm_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, server_default=text("gen_random_uuid()")
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=text("gen_random_uuid()"),
     )
     farm_code: Mapped[str] = mapped_column(String(20), unique=True, nullable=False, index=True)
     municipality_id: Mapped[int] = mapped_column(
@@ -296,7 +299,10 @@ class FarmPlot(Base, TimestampMixin):
     )
 
     plot_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, server_default=text("gen_random_uuid()")
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=text("gen_random_uuid()"),
     )
     farm_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("farms.farm_id", ondelete="CASCADE"), nullable=False, index=True
@@ -358,7 +364,10 @@ class IoTSensor(Base, TimestampMixin):
     )
 
     sensor_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, server_default=text("gen_random_uuid()")
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=text("gen_random_uuid()"),
     )
     serial_number: Mapped[str] = mapped_column(String(50), unique=True, nullable=False, index=True)
     farm_id: Mapped[uuid.UUID] = mapped_column(
@@ -377,7 +386,9 @@ class IoTSensor(Base, TimestampMixin):
         String(20), nullable=False, default="ACTIVE", server_default="ACTIVE"
     )
     last_seen_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
-    installed_at: Mapped[date] = mapped_column(Date, nullable=False, server_default=func.current_date())
+    installed_at: Mapped[date] = mapped_column(
+        Date, nullable=False, server_default=func.current_date()
+    )
 
     # Relationships
     farm: Mapped["Farm"] = relationship("Farm", back_populates="sensors")
@@ -460,7 +471,10 @@ class SoilLabAnalysis(Base, TimestampMixin):
     )
 
     analysis_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, server_default=text("gen_random_uuid()")
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=text("gen_random_uuid()"),
     )
     plot_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("farm_plots.plot_id", ondelete="CASCADE"), nullable=False
@@ -534,7 +548,10 @@ class FertilizerRecommendation(Base, TimestampMixin):
     )
 
     recommendation_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, server_default=text("gen_random_uuid()")
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=text("gen_random_uuid()"),
     )
     plot_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("farm_plots.plot_id", ondelete="CASCADE"), nullable=False, index=True
@@ -614,7 +631,10 @@ class AgronomicAlert(Base, TimestampMixin):
     )
 
     alert_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, server_default=text("gen_random_uuid()")
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=text("gen_random_uuid()"),
     )
     farm_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("farms.farm_id", ondelete="CASCADE"), nullable=False, index=True
@@ -658,7 +678,10 @@ class AgronomistFieldVisit(Base, TimestampMixin):
     )
 
     visit_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, server_default=text("gen_random_uuid()")
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=text("gen_random_uuid()"),
     )
     alert_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         ForeignKey("agronomic_alerts.alert_id", ondelete="SET NULL"), nullable=True, index=True
@@ -716,7 +739,10 @@ class ForestReserve(Base, TimestampMixin):
     __tablename__ = "forest_reserves"
 
     reserve_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, server_default=text("gen_random_uuid()")
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=text("gen_random_uuid()"),
     )
     official_code: Mapped[str] = mapped_column(String(40), unique=True, nullable=False, index=True)
     name: Mapped[str] = mapped_column(String(150), nullable=False)
@@ -742,7 +768,10 @@ class FarmReserveOverlap(Base):
     )
 
     overlap_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, server_default=text("gen_random_uuid()")
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=text("gen_random_uuid()"),
     )
     farm_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("farms.farm_id", ondelete="CASCADE"), nullable=False, index=True
@@ -776,7 +805,9 @@ class ExportBatch(Base, TimestampMixin):
             name="ck_export_batches_cupping_score",
         ),
         CheckConstraint("water_footprint_l_per_kg >= 0", name="ck_export_batches_water_positive"),
-        CheckConstraint("is_deforestation_free = TRUE", name="ck_export_batches_deforestation_free"),
+        CheckConstraint(
+            "is_deforestation_free = TRUE", name="ck_export_batches_deforestation_free"
+        ),
         CheckConstraint(
             "traceability_status IN ('DRAFT', 'CERTIFIED', 'EXPORTED', 'REJECTED')",
             name="ck_export_batches_status",
@@ -784,7 +815,10 @@ class ExportBatch(Base, TimestampMixin):
     )
 
     batch_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, server_default=text("gen_random_uuid()")
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=text("gen_random_uuid()"),
     )
     batch_code: Mapped[str] = mapped_column(String(30), unique=True, nullable=False, index=True)
     harvest_season: Mapped[str] = mapped_column(String(20), nullable=False)
@@ -826,7 +860,10 @@ class BatchFarmComposition(Base):
     )
 
     composition_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, server_default=text("gen_random_uuid()")
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=text("gen_random_uuid()"),
     )
     batch_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("export_batches.batch_id", ondelete="CASCADE"), nullable=False, index=True
@@ -887,7 +924,10 @@ class InternationalBuyer(Base, TimestampMixin):
     )
 
     buyer_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, server_default=text("gen_random_uuid()")
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=text("gen_random_uuid()"),
     )
     company_name: Mapped[str] = mapped_column(String(150), unique=True, nullable=False)
     country_iso_code: Mapped[str] = mapped_column(CHAR(2), nullable=False)
@@ -913,12 +953,13 @@ class BuyerBatchContract(Base):
     """Association model (M:N) that restricts which batches each buyer can query (NFR-06)."""
 
     __tablename__ = "buyer_batch_contracts"
-    __table_args__ = (
-        UniqueConstraint("buyer_id", "batch_id", name="uq_buyer_batch_contract"),
-    )
+    __table_args__ = (UniqueConstraint("buyer_id", "batch_id", name="uq_buyer_batch_contract"),)
 
     contract_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, server_default=text("gen_random_uuid()")
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=text("gen_random_uuid()"),
     )
     buyer_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("international_buyers.buyer_id", ondelete="CASCADE"), nullable=False, index=True
@@ -965,7 +1006,9 @@ class BuyerApiAuditLog(Base):
     buyer: Mapped["InternationalBuyer"] = relationship(
         "InternationalBuyer", back_populates="audit_logs"
     )
-    batch: Mapped[Optional["ExportBatch"]] = relationship("ExportBatch", back_populates="audit_logs")
+    batch: Mapped[Optional["ExportBatch"]] = relationship(
+        "ExportBatch", back_populates="audit_logs"
+    )
 ```
 
 ---
