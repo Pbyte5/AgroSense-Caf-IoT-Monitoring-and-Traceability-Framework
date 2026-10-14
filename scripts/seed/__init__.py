@@ -1,8 +1,8 @@
 """AgroSense Café - Data Seeding CLI Module."""
 
-from scripts.seed.faker_generators import AgroSenseFakerGenerator
-from scripts.seed.run_seed import main
-from scripts.seed.upsert_engine import (
+from .faker_generators import AgroSenseFakerGenerator
+from .run_seed import main
+from .upsert_engine import (
     TABLE_UPSERT_REGISTRY,
     TOPOLOGICAL_TABLE_ORDER,
     ConflictStrategy,

@@ -8,14 +8,20 @@ natural business keys (Deliverable E-03, CT-06).
 from __future__ import annotations
 
 import hashlib
+import os
 import random
 import uuid
+from datetime import date
 from typing import Any
 
 from faker import Faker
 
-from scripts.seed.spatial import PostGISSpatialGenerator
-from scripts.seed.spatial_models import AGROSENSE_NAMESPACE
+from .agronomy import (
+    evaluate_fertilizer_recommendation,
+    normalize_soil_lab_values,
+)
+from .spatial import PostGISSpatialGenerator
+from .spatial_models import AGROSENSE_NAMESPACE
 
 DEFAULT_DEPARTMENTS: list[dict[str, str]] = [
     {"dane_code": "05", "name": "Antioquia"},
@@ -615,6 +621,14 @@ class AgroSenseFakerGenerator:
             p_ppm = round(self.rng.uniform(12.0, 48.0), 2)
             k_cmol = round(self.rng.uniform(0.35, 0.95), 2)
             texture = textures[(i - 1) % len(textures)]
+            normalized_values = normalize_soil_lab_values(
+                nitrogen_value=n_ppm,
+                nitrogen_unit="ppm",
+                phosphorus_value=p_ppm,
+                phosphorus_unit="ppm",
+                potassium_value=k_cmol,
+                potassium_unit="cmol/kg",
+            )
 
             analyses.append(
                 {
@@ -622,20 +636,136 @@ class AgroSenseFakerGenerator:
                     "farm_id": farm["farm_id"],
                     "plot_id": plot_id,
                     "sample_date": sample_date,
-                    "raw_unit_reported": "ppm",
+                    "raw_unit_reported": "N=ppm;P=ppm;K=cmol/kg",
                     "ph_level": ph_level,
                     "ph_value": ph_level,
                     "organic_matter_pct": om_pct,
                     "nitrogen_ppm": n_ppm,
-                    "nitrogen_mg_kg": n_ppm,
+                    "nitrogen_mg_kg": float(normalized_values["nitrogen_mg_kg"]),
                     "phosphorus_ppm": p_ppm,
-                    "phosphorus_mg_kg": p_ppm,
+                    "phosphorus_mg_kg": float(normalized_values["phosphorus_mg_kg"]),
                     "potassium_cmol_kg": k_cmol,
-                    "potassium_mg_kg": round(k_cmol * 390.98, 2),
+                    "potassium_mg_kg": float(normalized_values["potassium_mg_kg"]),
                     "soil_texture": texture,
                 }
             )
         return analyses
+
+    def generate_fertilizer_recommendations(
+        self,
+        analyses: list[dict[str, Any]],
+        plots: list[dict[str, Any]],
+        references: list[dict[str, Any]],
+        *,
+        traditional_baseline_kg_ha: float = 200.0,
+    ) -> list[dict[str, Any]]:
+        """Calcula una recomendación RN-07 por análisis con el evaluador de la API."""
+        plots_by_id = {str(plot["plot_id"]): plot for plot in plots}
+        reference_by_variety_stage = {
+            (reference["variety_id"], reference["growth_stage"]): reference
+            for reference in references
+        }
+        recommendations: list[dict[str, Any]] = []
+        for analysis in analyses:
+            plot = plots_by_id.get(str(analysis["plot_id"]))
+            if plot is None:
+                raise ValueError(
+                    f"El análisis {analysis['analysis_id']} no tiene un lote existente."
+                )
+            reference = reference_by_variety_stage.get(
+                (plot["variety_id"], plot.get("growth_stage", "VEGETATIVE"))
+            )
+            if reference is None:
+                raise ValueError(
+                    "No existe crop_nutrient_reference para "
+                    f"variety_id={plot['variety_id']}, "
+                    f"growth_stage={plot.get('growth_stage', 'VEGETATIVE')}."
+                )
+
+            normalized_analysis = {
+                "ph_level": analysis["ph_level"],
+                "nitrogen_mg_kg": analysis["nitrogen_mg_kg"],
+                "phosphorus_mg_kg": analysis["phosphorus_mg_kg"],
+                "potassium_mg_kg": analysis["potassium_mg_kg"],
+            }
+            result = evaluate_fertilizer_recommendation(
+                normalized_analysis,
+                reference,
+                traditional_baseline_kg_ha=traditional_baseline_kg_ha,
+            )
+            recommendations.append(
+                {
+                    "recommendation_id": self.get_uuid5(
+                        f"fertilizer-recommendation:{analysis['analysis_id']}"
+                    ),
+                    "analysis_id": analysis["analysis_id"],
+                    "farm_id": analysis["farm_id"],
+                    "plot_id": plot["plot_id"],
+                    "n_evaluation": result["n_evaluation"],
+                    "p_evaluation": result["p_evaluation"],
+                    "k_evaluation": result["k_evaluation"],
+                    "ph_evaluation": result["ph_evaluation"],
+                    "apply_fertilizer": result["apply_fertilizer"],
+                    "recommended_n_kg_ha": result["recommended_n_kg_ha"],
+                    "recommended_p_kg_ha": result["recommended_p_kg_ha"],
+                    "recommended_k_kg_ha": result["recommended_k_kg_ha"],
+                    "lime_amendment_kg_ha": result["lime_amendment_kg_ha"],
+                    "estimated_saving_pct": result["estimated_saving_pct"],
+                    "warning_message": result.get("warning_message"),
+                    "status": result["status"],
+                }
+            )
+        return recommendations
+
+    def generate_agronomic_alerts(
+        self,
+        farms: list[dict[str, Any]],
+        plots: list[dict[str, Any]],
+        *,
+        forecast_target_date: date = date(2026, 10, 20),
+    ) -> list[dict[str, Any]]:
+        """Genera alertas deterministas y permite forzar fincas desde variables de entorno."""
+        definitions = {
+            "COFFEE_RUST": ("SEED_FORCE_ROYA_FARMS", "RN-03"),
+            "WATER_DEFICIT": ("SEED_FORCE_DEFICIT_FARMS", "RN-04"),
+            "EXTREME_RAIN": ("SEED_FORCE_EXTREME_RAIN_FARMS", "RN-05"),
+        }
+        farms_by_code = {farm["farm_code"]: farm for farm in farms}
+        plots_by_farm = {plot["farm_id"]: plot for plot in plots}
+        forced_by_type: dict[str, set[str]] = {}
+        for alert_type, (variable, _) in definitions.items():
+            forced_codes = {
+                code.strip() for code in os.getenv(variable, "").split(",") if code.strip()
+            }
+            unknown_codes = forced_codes - farms_by_code.keys()
+            if unknown_codes:
+                raise ValueError(
+                    f"{variable} contiene farm_code desconocidos: "
+                    f"{', '.join(sorted(unknown_codes))}."
+                )
+            forced_by_type[alert_type] = forced_codes
+
+        alerts: list[dict[str, Any]] = []
+        for farm in farms:
+            farm_code = farm["farm_code"]
+            plot = plots_by_farm.get(farm["farm_id"])
+            for alert_type, (_, rule_code) in definitions.items():
+                if farm_code not in forced_by_type[alert_type] and self.rng.random() >= 0.08:
+                    continue
+                natural_key = f"{farm_code}:{alert_type}:{forecast_target_date.isoformat()}"
+                alerts.append(
+                    {
+                        "alert_id": self.get_uuid5(natural_key),
+                        "farm_id": farm["farm_id"],
+                        "plot_id": plot["plot_id"] if plot else None,
+                        "rule_code": rule_code,
+                        "alert_type": alert_type,
+                        "severity": self.rng.choice(("LOW", "MEDIUM", "HIGH", "CRITICAL")),
+                        "forecast_target_date": forecast_target_date.isoformat(),
+                        "status": "OPEN",
+                    }
+                )
+        return alerts
 
     def generate_harvest_deliveries(
         self,
@@ -729,7 +859,7 @@ class AgroSenseFakerGenerator:
                 natural_key = f"{batch_code}:{delivery_id}"
                 composition_id = self.get_uuid5(natural_key)
                 contrib_weight = round(delivery["delivered_weight_kg"] * 0.9, 2)
-                plot_id = delivery.get("plot_id") or self.get_uuid5(f"FIN-{i+1:04d}:PLOT-1")
+                plot_id = delivery.get("plot_id") or self.get_uuid5(f"FIN-{i + 1:04d}:PLOT-1")
 
                 compositions.append(
                     {
@@ -818,11 +948,21 @@ class AgroSenseFakerGenerator:
             forest_reserves=forest_reserves,
         )
         farm_plots = self.generate_farm_plots(farms, plots_per_farm=2, varieties=coffee_varieties)
+        for plot in farm_plots:
+            plot["growth_stage"] = "VEGETATIVE"
         farm_reserve_overlaps = self.generate_farm_reserve_overlaps(farms, forest_reserves)
 
         # Tier 4
         iot_sensors = self.generate_iot_sensors(farms, sensor_types)
         soil_lab_analyses = self.generate_soil_lab_analyses(farms, count=analyses_count)
+        fertilizer_recommendations = self.generate_fertilizer_recommendations(
+            soil_lab_analyses,
+            farm_plots,
+            crop_nutrient_references,
+            traditional_baseline_kg_ha=float(
+                os.getenv("AGROSENSE_FERTILIZER_BASELINE_KG_HA", "200")
+            ),
+        )
         harvest_deliveries = self.generate_harvest_deliveries(farms, count=deliveries_count)
 
         # Tier 5
@@ -831,24 +971,43 @@ class AgroSenseFakerGenerator:
             export_batches, harvest_deliveries
         )
         buyer_batch_contracts = self.generate_buyer_batch_contracts(export_batches, buyers)
+        agronomic_alerts = self.generate_agronomic_alerts(farms, farm_plots)
 
         return {
             "departments": departments,
             "users": users,
             "producers": producers,
             "international_buyers": buyers,
-            "coffee_varieties": coffee_varieties,
+            "coffee_varieties": [
+                {
+                    "variety_id": variety["variety_id"],
+                    "variety_name": variety["name"],
+                }
+                for variety in coffee_varieties
+            ],
             "sensor_types": sensor_types,
             "crop_nutrient_references": crop_nutrient_references,
             "municipalities": municipalities,
             "forest_reserves": forest_reserves,
             "farms": farms,
-            "farm_plots": farm_plots,
+            "farm_plots": [
+                {
+                    "plot_id": plot["plot_id"],
+                    "farm_id": plot["farm_id"],
+                    "variety_id": plot["variety_id"],
+                    "plot_name": plot["plot_name"],
+                    "crop_age_years": plot["crop_age_years"],
+                    "growth_stage": plot["growth_stage"],
+                }
+                for plot in farm_plots
+            ],
             "farm_reserve_overlaps": farm_reserve_overlaps,
             "iot_sensors": iot_sensors,
             "soil_lab_analyses": soil_lab_analyses,
+            "fertilizer_recommendations": fertilizer_recommendations,
             "harvest_deliveries": harvest_deliveries,
             "export_batches": export_batches,
             "batch_farm_compositions": batch_farm_compositions,
             "buyer_batch_contracts": buyer_batch_contracts,
+            "agronomic_alerts": agronomic_alerts,
         }

@@ -6,9 +6,9 @@ import random
 import uuid
 from typing import Any
 
-from scripts.seed.faker_generators import AgroSenseFakerGenerator
-from scripts.seed.spatial import PostGISSpatialGenerator
-from scripts.seed.spatial_models import AGROSENSE_NAMESPACE
+from .faker_generators import AgroSenseFakerGenerator
+from .spatial import PostGISSpatialGenerator
+from .spatial_models import AGROSENSE_NAMESPACE
 
 
 def generate_faker_seed_dataset(

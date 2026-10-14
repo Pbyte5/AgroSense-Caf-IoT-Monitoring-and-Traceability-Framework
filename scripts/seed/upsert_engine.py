@@ -11,6 +11,7 @@ import enum
 import hashlib
 import json
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import Any
 
 
@@ -52,9 +53,9 @@ TABLE_UPSERT_REGISTRY: dict[str, TableUpsertConfig] = {
     ),
     "users": TableUpsertConfig(
         table_name="users",
-        conflict_target=("email",),
+        conflict_target=("user_id",),
         strategy=ConflictStrategy.DO_UPDATE,
-        update_columns=("full_name", "role", "password_hash", "is_active"),
+        update_columns=("full_name", "role"),
         tier=1,
     ),
     "producers": TableUpsertConfig(
@@ -64,9 +65,7 @@ TABLE_UPSERT_REGISTRY: dict[str, TableUpsertConfig] = {
         update_columns=(
             "full_name",
             "phone_number",
-            "email",
             "cooperative_join_date",
-            "is_active",
         ),
         tier=1,
     ),
@@ -74,21 +73,38 @@ TABLE_UPSERT_REGISTRY: dict[str, TableUpsertConfig] = {
         table_name="international_buyers",
         conflict_target=("client_id",),
         strategy=ConflictStrategy.DO_UPDATE,
-        update_columns=(
-            "company_name",
-            "country",
-            "country_iso_code",
-            "api_key_hash",
-            "rate_limit_per_min",
-            "is_active",
-        ),
+        update_columns=("buyer_name",),
         tier=1,
     ),
     "coffee_varieties": TableUpsertConfig(
         table_name="coffee_varieties",
-        conflict_target=("name",),
+        conflict_target=("variety_name",),
         strategy=ConflictStrategy.DO_NOTHING,
         update_columns=(),
+        tier=1,
+    ),
+    "crop_nutrient_references": TableUpsertConfig(
+        table_name="crop_nutrient_references",
+        conflict_target=("reference_id",),
+        strategy=ConflictStrategy.DO_UPDATE,
+        update_columns=(
+            "variety_id",
+            "crop_label",
+            "growth_stage",
+            "target_ph_min",
+            "target_ph_max",
+            "ph_min",
+            "ph_max",
+            "req_nitrogen_kg_ha",
+            "n_min_mg_kg",
+            "n_max_mg_kg",
+            "req_phosphorus_kg_ha",
+            "p_min_mg_kg",
+            "p_max_mg_kg",
+            "req_potassium_kg_ha",
+            "k_min_mg_kg",
+            "k_max_mg_kg",
+        ),
         tier=1,
     ),
     "sensor_types": TableUpsertConfig(
@@ -98,19 +114,12 @@ TABLE_UPSERT_REGISTRY: dict[str, TableUpsertConfig] = {
         update_columns=(),
         tier=1,
     ),
-    "crop_nutrient_references": TableUpsertConfig(
-        table_name="crop_nutrient_references",
-        conflict_target=("reference_id",),
-        strategy=ConflictStrategy.DO_NOTHING,
-        update_columns=(),
-        tier=1,
-    ),
     # Tier 2: Entidades espaciales y regionales
     "municipalities": TableUpsertConfig(
         table_name="municipalities",
-        conflict_target=("dane_code",),
-        strategy=ConflictStrategy.DO_NOTHING,
-        update_columns=(),
+        conflict_target=("municipality_id",),
+        strategy=ConflictStrategy.DO_UPDATE,
+        update_columns=("name",),
         tier=2,
     ),
     "forest_reserves": TableUpsertConfig(
@@ -135,18 +144,9 @@ TABLE_UPSERT_REGISTRY: dict[str, TableUpsertConfig] = {
         update_columns=(
             "latitude",
             "longitude",
-            "total_area_ha",
             "cultivated_area_ha",
-            "altitude_msl",
-            "name",
-            "producer_name",
-            "has_pilot_sensors",
-            "is_pilot_sensor_farm",
             "water_usage_m3_ton",
             "overlaps_reserve",
-            "is_active",
-            "geom_ewkt",
-            "polygon_geojson",
         ),
         tier=3,
     ),
@@ -156,10 +156,8 @@ TABLE_UPSERT_REGISTRY: dict[str, TableUpsertConfig] = {
         strategy=ConflictStrategy.DO_UPDATE,
         update_columns=(
             "plot_name",
-            "cultivated_area_ha",
-            "plot_area_ha",
-            "tree_density_per_ha",
             "crop_age_years",
+            "growth_stage",
         ),
         tier=3,
     ),
@@ -206,16 +204,32 @@ TABLE_UPSERT_REGISTRY: dict[str, TableUpsertConfig] = {
         ),
         tier=4,
     ),
+    "fertilizer_recommendations": TableUpsertConfig(
+        table_name="fertilizer_recommendations",
+        conflict_target=("recommendation_id",),
+        strategy=ConflictStrategy.DO_UPDATE,
+        update_columns=(
+            "farm_id",
+            "plot_id",
+            "n_evaluation",
+            "p_evaluation",
+            "k_evaluation",
+            "ph_evaluation",
+            "apply_fertilizer",
+            "recommended_n_kg_ha",
+            "recommended_p_kg_ha",
+            "recommended_k_kg_ha",
+            "lime_amendment_kg_ha",
+            "estimated_saving_pct",
+            "warning_message",
+        ),
+        tier=4,
+    ),
     "harvest_deliveries": TableUpsertConfig(
         table_name="harvest_deliveries",
         conflict_target=("delivery_id",),
         strategy=ConflictStrategy.DO_UPDATE,
-        update_columns=(
-            "delivered_weight_kg",
-            "moisture_pct",
-            "grain_moisture_pct",
-            "quality_score",
-        ),
+        update_columns=("farm_id", "plot_id", "delivery_date", "delivered_weight_kg"),
         tier=4,
     ),
     # Tier 5: Trazabilidad, lotes comerciales y contratos
@@ -228,10 +242,7 @@ TABLE_UPSERT_REGISTRY: dict[str, TableUpsertConfig] = {
             "traced_weight_kg",
             "is_exportable",
             "is_certified",
-            "cupping_score",
             "weighted_water_m3_ton",
-            "avg_fertilizer_red_pct",
-            "traceability_status",
         ),
         tier=5,
     ),
@@ -245,12 +256,15 @@ TABLE_UPSERT_REGISTRY: dict[str, TableUpsertConfig] = {
     "buyer_batch_contracts": TableUpsertConfig(
         table_name="buyer_batch_contracts",
         conflict_target=("contract_id",),
+        strategy=ConflictStrategy.DO_NOTHING,
+        update_columns=(),
+        tier=5,
+    ),
+    "agronomic_alerts": TableUpsertConfig(
+        table_name="agronomic_alerts",
+        conflict_target=("alert_id",),
         strategy=ConflictStrategy.DO_UPDATE,
-        update_columns=(
-            "purchase_date",
-            "shipping_container_id",
-            "contract_reference",
-        ),
+        update_columns=("plot_id", "rule_code", "alert_type", "severity", "forecast_target_date"),
         tier=5,
     ),
 }
@@ -258,7 +272,18 @@ TABLE_UPSERT_REGISTRY: dict[str, TableUpsertConfig] = {
 # Orden topológico de ejecución estricto (Tier 1 a Tier 5)
 TOPOLOGICAL_TABLE_ORDER: list[str] = sorted(
     TABLE_UPSERT_REGISTRY.keys(),
-    key=lambda t: (TABLE_UPSERT_REGISTRY[t].tier, t),
+    key=lambda t: (
+        TABLE_UPSERT_REGISTRY[t].tier,
+        {
+            "coffee_varieties": 0,
+            "crop_nutrient_references": 1,
+            "iot_sensors": 0,
+            "soil_lab_analyses": 1,
+            "fertilizer_recommendations": 2,
+            "harvest_deliveries": 3,
+        }.get(t, 10),
+        t,
+    ),
 )
 
 
@@ -294,6 +319,10 @@ class UpsertEngine:
             return "NULL"
         if isinstance(val, bool):
             return "TRUE" if val else "FALSE"
+        if isinstance(val, Decimal):
+            if not val.is_finite():
+                raise ValueError("Los valores Decimal deben ser finitos.")
+            return str(val)
         if isinstance(val, int | float):
             return str(val)
         if isinstance(val, dict | list):

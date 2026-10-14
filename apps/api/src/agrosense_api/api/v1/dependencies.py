@@ -25,7 +25,7 @@ oauth2_scheme = OAuth2PasswordBearer(
 buyer_jwt = HTTPBearer(
     scheme_name="BuyerJWT",
     description=(
-        "JWT for a buyer. It must contain a buyer_id UUID claim and the " "traceability:read scope."
+        "JWT for a buyer. It must contain a buyer_id UUID claim and the traceability:read scope."
     ),
     bearerFormat="JWT",
 )

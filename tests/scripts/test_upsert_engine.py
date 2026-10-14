@@ -21,7 +21,7 @@ def test_registry_integrity_and_tiers():
     assert TABLE_UPSERT_REGISTRY["departments"].tier == 1
 
     assert TABLE_UPSERT_REGISTRY["users"].strategy == ConflictStrategy.DO_UPDATE
-    assert TABLE_UPSERT_REGISTRY["users"].conflict_target == ("email",)
+    assert TABLE_UPSERT_REGISTRY["users"].conflict_target == ("user_id",)
 
     assert TABLE_UPSERT_REGISTRY["farms"].strategy == ConflictStrategy.DO_UPDATE
     assert TABLE_UPSERT_REGISTRY["farms"].conflict_target == ("farm_code",)
@@ -71,12 +71,11 @@ def test_build_upsert_sql_do_update():
         {
             "farm_id": "7060dc2f-48eb-5db4-9a7d-47ac1b4b4ae9",
             "farm_code": "FIN-0001",
-            "name": "Finca La Esperanza",
             "latitude": 4.56,
             "longitude": -75.67,
-            "total_area_ha": 15.5,
-            "altitude_msl": 1500,
-            "has_pilot_sensors": True,
+            "cultivated_area_ha": 15.5,
+            "water_usage_m3_ton": 4.2,
+            "overlaps_reserve": False,
         }
     ]
 
@@ -85,7 +84,6 @@ def test_build_upsert_sql_do_update():
     sql = statements[0]
     assert "INSERT INTO farms" in sql
     assert "ON CONFLICT (farm_code) DO UPDATE SET" in sql
-    assert "name = EXCLUDED.name" in sql
     assert "latitude = EXCLUDED.latitude" in sql
 
 
@@ -122,36 +120,32 @@ def test_build_truncate_sql():
 def test_simulate_upsert_updates_in_place_without_inflation():
     """Verify in-memory UPSERT updates in-place without adding duplicate rows."""
     store: dict[tuple, dict] = {}
-    records_1 = [
-        {"user_id": "u-1", "email": "ana@agrosense.co", "full_name": "Ana", "role": "AGRONOMIST"}
-    ]
+    records_1 = [{"user_id": "u-1", "full_name": "Ana", "role": "AGRONOMIST"}]
 
     stats_1 = UpsertEngine.simulate_upsert("users", store, records_1)
     assert stats_1 == {"inserted": 1, "updated": 0, "unchanged": 0}
     assert len(store) == 1
 
     # Re-run with updated role
-    records_2 = [
-        {"user_id": "u-1", "email": "ana@agrosense.co", "full_name": "Ana G", "role": "ADMIN"}
-    ]
+    records_2 = [{"user_id": "u-1", "full_name": "Ana G", "role": "ADMIN"}]
     stats_2 = UpsertEngine.simulate_upsert("users", store, records_2)
     assert stats_2 == {"inserted": 0, "updated": 1, "unchanged": 0}
     assert len(store) == 1  # ZERO row inflation
-    assert store[("ana@agrosense.co",)]["role"] == "ADMIN"
-    assert store[("ana@agrosense.co",)]["full_name"] == "Ana G"
+    assert store[("u-1",)]["role"] == "ADMIN"
+    assert store[("u-1",)]["full_name"] == "Ana G"
 
 
 def test_simulate_upsert_do_nothing_preserves_existing():
     """Verify DO NOTHING preserves original values on conflict."""
     store: dict[tuple, dict] = {}
-    records_1 = [{"variety_id": 1, "name": "Castillo", "optimal_temp_min_c": 17.0}]
+    records_1 = [{"variety_id": 1, "variety_name": "Castillo"}]
     UpsertEngine.simulate_upsert("coffee_varieties", store, records_1)
 
-    records_2 = [{"variety_id": 99, "name": "Castillo", "optimal_temp_min_c": 22.0}]
+    records_2 = [{"variety_id": 99, "variety_name": "Castillo"}]
     stats_2 = UpsertEngine.simulate_upsert("coffee_varieties", store, records_2)
     assert stats_2 == {"inserted": 0, "updated": 0, "unchanged": 1}
     assert len(store) == 1
-    assert store[("Castillo",)]["optimal_temp_min_c"] == 17.0
+    assert store[("Castillo",)]["variety_id"] == 1
 
 
 def test_strict_idempotency_zero_row_inflation_ct06():

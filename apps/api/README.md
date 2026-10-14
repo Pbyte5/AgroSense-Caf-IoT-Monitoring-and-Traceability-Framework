@@ -44,6 +44,13 @@ The soil recommendations are intentionally conservative screening rules, not
 fertilizer prescriptions; confirm measurements and treatments with a qualified
 agronomist.
 
+RN-07 evaluates normalized soil values in mg/kg against the F1 reference for
+the plot's coffee variety and growth stage. The initial prototype uses a
+soil-to-application conversion factor of `0.5` kg/ha per mg/kg deficit and a
+traditional-dose baseline of `200` kg/ha. These assumptions need agronomic
+calibration for the local soil depth, bulk density, and nutrient availability;
+they are not validated fertilizer prescriptions.
+
 ## Connect to PostgreSQL/PostGIS
 
 Create a PostgreSQL database with PostGIS enabled, then set the service
@@ -59,10 +66,10 @@ uv run --package agrosense-api fastapi dev apps/api/src/agrosense_api/script.py
 ```
 
 Use a secret manager for deployed credentials rather than committing a `.env`
-file. The migration creates the initial schema, PostGIS geometry columns,
-spatial indexes, and the composition-protection trigger. Review it against any
-existing database before applying it; it is an initial schema, not a data
-migration for an existing production schema.
+file. The migrations create the initial schema and the incremental soil-analysis,
+fertilizer-recommendation, and agronomic-alert tables, including PostGIS geometry
+columns, spatial indexes, and the composition-protection trigger. Review them
+against any existing database before applying them.
 
 Interactive API documentation is available at `/docs` (Swagger UI) and
 `/redoc`; the generated contract is OpenAPI 3.0.3 at `/openapi.json`.

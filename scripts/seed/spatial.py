@@ -10,7 +10,7 @@ import math
 import random
 import uuid
 
-from scripts.seed.spatial_geometry import (
+from .spatial_geometry import (
     point_in_polygon,
     point_on_segment,
     polygon_to_geojson,
@@ -19,12 +19,12 @@ from scripts.seed.spatial_geometry import (
     segments_intersect,
     validate_ring,
 )
-from scripts.seed.spatial_models import (
+from .spatial_models import (
     AGROSENSE_NAMESPACE,
     COFFEE_REGION_BOUNDS,
     SpatialPolygonResult,
 )
-from scripts.seed.spatial_models import (
+from .spatial_models import (
     COLOMBIA_VALID_BOUNDS as _COLOMBIA_VALID_BOUNDS,
 )
 

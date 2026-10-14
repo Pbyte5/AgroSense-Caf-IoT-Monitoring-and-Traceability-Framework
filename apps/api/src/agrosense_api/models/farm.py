@@ -12,10 +12,13 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .base import BaseModel
 
 if TYPE_CHECKING:
+    from .agronomy import AgronomicAlert, FertilizerRecommendation
     from .batch import BatchFarmComposition
+    from .crop_nutrient_reference import CropNutrientReference
     from .harvest import HarvestDelivery
     from .location import Municipality
     from .producer import Producer
+    from .soil_lab_analysis import SoilLabAnalysis
 
 
 class CoffeeVariety(BaseModel):
@@ -38,6 +41,9 @@ class CoffeeVariety(BaseModel):
     plots: Mapped[list[FarmPlot]] = relationship(
         "FarmPlot",
         back_populates="variety",
+    )
+    nutrient_references: Mapped[list[CropNutrientReference]] = relationship(
+        "CropNutrientReference", back_populates="variety"
     )
 
     def __repr__(self) -> str:
@@ -122,6 +128,9 @@ class Farm(BaseModel):
     batch_compositions: Mapped[list[BatchFarmComposition]] = relationship(
         "BatchFarmComposition",
         back_populates="farm",
+    )
+    agronomic_alerts: Mapped[list[AgronomicAlert]] = relationship(
+        "AgronomicAlert", back_populates="farm"
     )
 
     def __repr__(self) -> str:
@@ -209,6 +218,12 @@ class FarmPlot(BaseModel):
         Integer,
         nullable=False,
     )
+    growth_stage: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        default="VEGETATIVE",
+        server_default=text("'VEGETATIVE'"),
+    )
 
     # Relaciones
     farm: Mapped[Farm] = relationship(
@@ -222,6 +237,15 @@ class FarmPlot(BaseModel):
     harvest_deliveries: Mapped[list[HarvestDelivery]] = relationship(
         "HarvestDelivery",
         back_populates="plot",
+    )
+    soil_lab_analyses: Mapped[list[SoilLabAnalysis]] = relationship(
+        "SoilLabAnalysis", back_populates="plot", cascade="all, delete-orphan"
+    )
+    fertilizer_recommendations: Mapped[list[FertilizerRecommendation]] = relationship(
+        "FertilizerRecommendation", back_populates="plot", cascade="all, delete-orphan"
+    )
+    agronomic_alerts: Mapped[list[AgronomicAlert]] = relationship(
+        "AgronomicAlert", back_populates="plot"
     )
 
     def __repr__(self) -> str:

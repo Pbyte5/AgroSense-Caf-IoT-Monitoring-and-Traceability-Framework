@@ -1,0 +1,12 @@
+[project]
+name = "agrosense-seed"
+version = "0.1.0"
+description = "Deterministic AgroSense Café database seed"
+requires-python = ">=3.12"
+dependencies = [
+    "faker>=40.43.0",
+    "psycopg[binary]>=3.3.6",
+]
+
+[tool.uv]
+package = false

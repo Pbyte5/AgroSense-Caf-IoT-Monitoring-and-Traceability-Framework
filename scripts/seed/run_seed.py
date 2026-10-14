@@ -1,7 +1,7 @@
 """AgroSense Café — Reproducible and Idempotent Data Seed Script.
 
-CLI script supporting deterministic seed parameters, modes, defect rates,
-and reset operations for PostgreSQL and storage layers.
+Generates PostgreSQL UPSERT statements and simulates their effect in memory.
+It does not connect to PostgreSQL or write to object storage.
 """
 
 from __future__ import annotations
@@ -15,9 +15,10 @@ from dataclasses import dataclass
 
 from faker import Faker
 
-from scripts.seed.faker_generators import AgroSenseFakerGenerator
-from scripts.seed.records import generate_sample_seed_records, generate_spatial_seed_records
-from scripts.seed.upsert_engine import (
+from .database_dataset import build_database_dataset
+from .faker_generators import AgroSenseFakerGenerator
+from .records import generate_sample_seed_records, generate_spatial_seed_records
+from .upsert_engine import (
     UpsertEngine,
     calculate_database_checksum,
     get_database_row_counts,
@@ -36,8 +37,10 @@ class SeedConfig:
         mode: Escala del dataset ('dev' para desarrollo local o 'prod' para volumen completo).
         seed: Semilla entera fija para generadores de números pseudoaleatorios (PRNG).
         defect_rate: Proporción de defectos y anomalías sintéticas a inyectar (0.0 a 1.0).
-        reset: Indica si se debe ejecutar un borrado seguro (TRUNCATE CASCADE) previo a la carga.
+        reset: Reinicia el almacén de simulación en memoria.
         batch_size: Tamaño de lote para sentencias multi-row UPSERT (por defecto 1000).
+        write_postgres: Habilita explícitamente la persistencia PostgreSQL.
+        reset_database: Trunca el subconjunto cargado en PostgreSQL antes de escribir.
     """
 
     mode: str
@@ -45,6 +48,8 @@ class SeedConfig:
     defect_rate: float
     reset: bool = False
     batch_size: int = 1000
+    write_postgres: bool = False
+    reset_database: bool = False
 
 
 def set_reproducible_state(seed: int) -> None:
@@ -127,8 +132,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="run_seed.py",
         description=(
-            "AgroSense Café - Ejecutor reproducible e idempotente de datos sintéticos. "
-            "Puebla la base de datos PostgreSQL y las capas de almacenamiento."
+            "AgroSense Café - Generador reproducible de datos y SQL UPSERT. "
+            "Por defecto simula en memoria; --write-postgres habilita escritura explícita."
         ),
     )
 
@@ -170,7 +175,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--reset",
         action="store_true",
         default=env_reset,
-        help="Limpia las tablas y reinicia secuencias antes de sembrar (TRUNCATE CASCADE).",
+        help="Reinicia únicamente el almacén simulado en memoria.",
     )
 
     # Argumento: --batch-size
@@ -180,6 +185,22 @@ def build_parser() -> argparse.ArgumentParser:
         default=default_batch_size,
         dest="batch_size",
         help=f"Tamaño de lote para sentencias multi-row UPSERT. Por defecto: {default_batch_size}.",
+    )
+    parser.add_argument(
+        "--write-postgres",
+        action="store_true",
+        help=(
+            "Escribe los datos compatibles con el esquema ORM en PostgreSQL. "
+            "Requiere AGROSENSE_DATABASE_URL."
+        ),
+    )
+    parser.add_argument(
+        "--reset-database",
+        action="store_true",
+        help=(
+            "Trunca las tablas incluidas en el dataset antes de escribir. "
+            "Requiere --write-postgres; no usa CASCADE."
+        ),
     )
 
     return parser
@@ -202,6 +223,8 @@ def parse_args(args: Sequence[str] | None = None) -> SeedConfig:
         defect_rate=parsed.defect_rate,
         reset=parsed.reset,
         batch_size=parsed.batch_size,
+        write_postgres=parsed.write_postgres,
+        reset_database=parsed.reset_database,
     )
 
 
@@ -213,6 +236,8 @@ def run_seed(
     defect_rate: float = 0.05,
     reset: bool = False,
     batch_size: int = 1000,
+    write_postgres: bool = False,
+    reset_database: bool = False,
 ) -> int:
     """Orquesta y ejecuta el proceso de generación y siembra de datos con Faker y UPSERT.
 
@@ -226,6 +251,8 @@ def run_seed(
         defect_rate: Proporción de defectos si no se provee config.
         reset: Limpieza previa si no se provee config.
         batch_size: Tamaño de lote si no se provee config.
+        write_postgres: Habilita persistencia PostgreSQL si no se provee config.
+        reset_database: Limpia las tablas cargadas en PostgreSQL si no se provee config.
 
     Returns:
         int: Código de salida (0 para éxito, distinto de 0 en caso de error).
@@ -238,18 +265,26 @@ def run_seed(
             defect_rate=defect_rate,
             reset=reset,
             batch_size=batch_size,
+            write_postgres=write_postgres,
+            reset_database=reset_database,
         )
 
     try:
         logger.info("Iniciando proceso de seeding de AgroSense Café...")
         logger.info(
-            "Configuración activa: mode=%s, seed=%d, defect_rate=%.2f, reset=%s, batch_size=%d",
+            "Configuración activa: mode=%s, seed=%d, defect_rate=%.2f, reset_memory=%s, "
+            "write_postgres=%s, reset_database=%s, batch_size=%d",
             config.mode,
             config.seed,
             config.defect_rate,
             config.reset,
+            config.write_postgres,
+            config.reset_database,
             config.batch_size,
         )
+
+        if config.reset_database and not config.write_postgres:
+            raise ValueError("--reset-database requiere --write-postgres.")
 
         # 1. Asegurar estado pseudoaleatorio determinista con la semilla configurada
         set_reproducible_state(config.seed)
@@ -257,6 +292,7 @@ def run_seed(
         # 2. Generación determinista de entidades sintéticas con integración de Faker
         faker_gen = AgroSenseFakerGenerator(seed=config.seed)
         dataset = faker_gen.generate_all(mode=config.mode)
+        database_dataset = build_database_dataset(dataset)
         farms_count = len(dataset.get("farms", []))
         logger.info(
             "Dataset sintético generado con Faker: %d fincas, %d productores, %d sensores.",
@@ -269,14 +305,14 @@ def run_seed(
         engine = UpsertEngine(batch_size=config.batch_size)
 
         if config.reset:
-            truncate_stmt = engine.build_truncate_sql()
-            logger.info("Modo --reset activo: Limpieza atómica preparada:\n  %s", truncate_stmt)
+            logger.info("Modo --reset activo: reiniciando el almacén simulado en memoria.")
             reset_database_state()
 
-        # Aplicar datos en el almacén de base de datos simulado (emula ejecución SQL)
+        # Preserve the full in-memory simulator; only SQL/database writes are projected
+        # onto the current ORM contract.
         engine.apply_dataset_upsert(dataset)
 
-        sql_statements = engine.build_all_upsert_statements(dataset)
+        sql_statements = engine.build_all_upsert_statements(database_dataset)
         total_stmts = sum(len(stmts) for stmts in sql_statements.values())
         logger.info(
             "Sentencias UPSERT (ON CONFLICT) en 5 niveles topológicos: %d en %d tablas.",
@@ -294,6 +330,28 @@ def run_seed(
             "Certificación CT-06 aprobada: 0 inflación de filas y 0 duplicados en %d tablas.",
             idempotency_report["tables_tested"],
         )
+
+        if config.write_postgres:
+            database_url = os.getenv("AGROSENSE_DATABASE_URL")
+            if not database_url:
+                raise ValueError("--write-postgres requiere configurar AGROSENSE_DATABASE_URL.")
+            from .postgres import write_dataset_to_postgres
+
+            written_rows = write_dataset_to_postgres(
+                database_dataset,
+                database_url,
+                engine=engine,
+                reset_database=config.reset_database,
+            )
+            logger.info(
+                "Persistencia PostgreSQL confirmada: %s",
+                ", ".join(f"{table}={count}" for table, count in written_rows.items()),
+            )
+        else:
+            logger.info(
+                "Modo simulación: no se escribió en PostgreSQL. "
+                "Use --write-postgres para persistir explícitamente."
+            )
 
         # 5. Geometrías espaciales de muestra para diagnóstico CLI
         sample_data, reserve_data = generate_spatial_seed_records(
